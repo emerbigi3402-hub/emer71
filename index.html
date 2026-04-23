@@ -234,7 +234,6 @@
   <script>
     // =========================================================
     // 🔗 API Wrapper สำหรับติดต่อไปยัง Google Apps Script Backend
-    // โค้ดนี้เช็คอัตโนมัติ ถ้าอยู่บน Google ใช้ google.script.run ถ้าอยู่บน GitHub ใช้ fetch()
     // =========================================================
     const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyd0mY9o71ezrXxaRJE8-ICCaZHwVOzH7v3XT4v1aP_aQbz6qJFg4Wm_bVfv773Kr6LRg/exec';
 
@@ -295,8 +294,8 @@
       let counter = 1;
       const createRadios = (items, containerId) => {
         document.getElementById(containerId).innerHTML = items.map((item) => `
-          <div class="p-3 sm:p-4 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col justify-center">
-            <label class="block text-sm sm:text-base font-medium text-gray-800 radio-label mb-3 text-center break-words w-full">${item}</label>
+          <div class="p-4 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col justify-center">
+            <label class="block text-base sm:text-lg font-medium text-gray-800 radio-label mb-4 text-center break-words w-full">${item}</label>
             <div class="flex justify-between w-full px-2 sm:px-6">
               <label class="flex items-center space-x-2 cursor-pointer"><input type="radio" name="eq_${counter}" value="✓" class="radio-btn text-emerald-500 w-5 h-5" required> <span class="text-sm sm:text-base text-green-600 font-bold">✓ มี</span></label>
               <label class="flex items-center space-x-2 cursor-pointer"><input type="radio" name="eq_${counter++}" value="✗" class="radio-btn text-red-500 w-5 h-5" required> <span class="text-sm sm:text-base text-red-600 font-bold">✗ ไม่มี</span></label>
@@ -312,15 +311,12 @@
       try {
         setStatus('loading', 'กำลังโหลดข้อมูลทั้งหมด...');
         const data = await apiCall('getInitialData');
-        
         allMedicines = data.medicines || [];
         inspectorNames = data.names || [];
         allInspections = data.inspections || [];
-
         renderMedicinesData();
         renderNamesData();
         renderInspections();
-        
         setStatus('connected', 'พร้อมใช้งาน');
         apiCall('updateAllMedicineDays'); 
       } catch (err) { setStatus('error', 'การเชื่อมต่อผิดพลาด'); }
@@ -350,7 +346,6 @@
           const wA = getStatusWeight(a.status);
           const wB = getStatusWeight(b.status);
           if(wA !== wB) return wA - wB; 
-          
           const da = a.days_remaining === null ? 9999 : parseInt(a.days_remaining);
           const db = b.days_remaining === null ? 9999 : parseInt(b.days_remaining);
           return da - db;
@@ -675,12 +670,24 @@
       const checkIdVal = document.getElementById('checkId').value;
       if(!checkIdVal) return Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณาเลือกวันและวันที่ตรวจ' });
       
+      // Validation Check: ตรวจสอบอุปกรณ์ครบทุกชิ้นหรือไม่
+      let missingItems = false;
+      for(let i=1; i<=19; i++) {
+        if(!document.querySelector(`input[name="eq_${i}"]:checked`)) missingItems = true;
+      }
+      
+      if(missingItems) {
+        return Swal.fire({ icon: 'error', title: 'ข้อมูลไม่ครบถ้วน', text: 'กรุณาตรวจสอบและเลือกอุปกรณ์ให้ครบทุกรายการครับ' });
+      }
+
       const btn = document.getElementById('submit-inspection');
       btn.disabled = true; btn.innerText = 'กำลังบันทึก...';
 
       try {
         const payload = {
           id: checkIdVal,
+          day: document.getElementById('day').value,
+          raw_date: document.getElementById('date').value,
           box_type: document.querySelector('input[name="medicineType"]:checked').value,
           inspector: document.getElementById('inspector').value,
           signature: signaturePad.isEmpty() ? null : signaturePad.canvas.toDataURL('image/png'),
