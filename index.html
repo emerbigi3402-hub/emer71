@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ระบบตรวจสอบอุปกรณ์รถ Emergency</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Prompt', sans-serif; box-sizing: border-box; }
+    body { background-color: #f0fdf4; }
+    .modal-backdrop { backdrop-filter: blur(2px); }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; }
+    
+    @media (max-width: 640px) {
+      .hide-mobile { display: none; }
+      th, td { padding: 0.6rem 0.5rem !important; font-size: 0.8rem !important; }
+      .p-card { padding: 1rem !important; }
+      .radio-btn { width: 1.5rem !important; height: 1.5rem !important; }
+      .radio-label { font-size: 1rem !important; }
+    }
+  </style>
+</head>
+<body class="min-h-full pb-10">
+  <div class="max-w-5xl mx-auto p-2 sm:p-4">
+    
+    <div class="bg-white rounded-xl shadow-sm p-card sm:p-5 mb-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="bg-emerald-500 p-2 sm:p-3 rounded-lg hide-mobile">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        <div class="flex flex-col">
+          <h1 class="text-base sm:text-xl font-bold text-gray-800 leading-tight">ระบบตรวจสอบรถ Emergency OPD71 A</h1>
+          <span class="text-xs text-gray-500">สถาบันบำราศนราดูร</span>
+          <div class="flex items-center gap-1 mt-1">
+            <div id="status-indicator" class="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+            <span id="status-text" class="text-xs text-yellow-600">กำลังเชื่อมต่อฐานข้อมูล...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-4">
+      <div class="p-card sm:p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+        <h2 class="text-sm sm:text-lg font-bold text-gray-800 flex items-center gap-2">
+          📋 รายการยาและเวชภัณฑ์ 
+          <span id="current-datetime" class="text-[10px] sm:text-xs font-normal text-emerald-600 bg-emerald-50 px-2 py-1 rounded border border-emerald-200"></span>
+        </h2>
+        <div class="flex gap-2 w-full sm:w-auto">
+          <button onclick="fetchMedicinesOnly()" class="flex-1 sm:flex-none bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium flex justify-center items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <span class="hide-mobile">รีเฟรช</span>
+          </button>
+          <button onclick="openAddMedicineModal()" class="flex-1 sm:flex-none bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium flex justify-center items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            <span>เพิ่มยา/เวชภัณฑ์</span>
+          </button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-center">
+          <thead class="bg-emerald-500 text-white text-xs sm:text-sm">
+            <tr>
+              <th class="px-3 py-2 text-left">รายการ</th>
+              <th class="px-3 py-2">เหลือ(วัน)</th>
+              <th class="px-3 py-2">สถานะ</th>
+              <th class="px-3 py-2 w-12">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="medicine-table-body" class="divide-y divide-gray-100 text-xs sm:text-sm"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+      <div class="p-card sm:p-4 border-b border-gray-100">
+        <h2 class="text-base sm:text-lg font-bold text-gray-800">🚑 บันทึกการตรวจสอบรถ</h2>
+      </div>
+      
+      <form id="emergencyForm" class="p-card sm:p-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+          <div>
+            <label class="block text-sm sm:text-base text-emerald-700 font-medium mb-2 text-center sm:text-left">วัน <span class="text-red-500">*</span></label>
+            <select id="day" class="w-full p-3 border border-emerald-200 rounded-lg text-base text-center sm:text-left focus:outline-none focus:border-emerald-500" required>
+              <option value="">เลือกวัน</option>
+              <option value="วันจันทร์">วันจันทร์</option>
+              <option value="วันศุกร์">วันศุกร์</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm sm:text-base text-emerald-700 font-medium mb-2 text-center sm:text-left">วันที่ตรวจ</label>
+            <input type="date" id="date" class="w-full p-3 border border-emerald-200 rounded-lg text-base text-center sm:text-left focus:outline-none focus:border-emerald-500" required>
+            <input type="hidden" id="checkId">
+          </div>
+        </div>
+
+        <div class="space-y-6">
+          <div class="bg-blue-50 p-card sm:p-4 rounded-xl">
+            <h3 class="font-bold text-blue-800 mb-3 text-center sm:text-left text-base sm:text-lg">ชั้นที่ 1</h3>
+            <div class="p-4 bg-white rounded-lg border border-blue-100 shadow-sm mx-auto flex flex-col justify-center">
+              <label class="block text-base sm:text-lg font-medium text-blue-800 mb-4 text-center w-full">ประเภท Box ยา <span class="text-red-500">*</span></label>
+              <div class="flex justify-between w-full px-2 sm:px-6">
+                <label class="flex items-center justify-center sm:justify-start space-x-2 cursor-pointer"><input type="radio" name="medicineType" value="มี Box ยา" class="radio-btn text-emerald-500 w-5 h-5" required> <span class="text-sm sm:text-base text-emerald-700 font-bold">มี Box ยา</span></label>
+                <label class="flex items-center justify-center sm:justify-start space-x-2 cursor-pointer"><input type="radio" name="medicineType" value="Box ยาอยู่ที่แผนกอื่น" class="radio-btn text-emerald-500 w-5 h-5" required> <span class="text-sm sm:text-base text-emerald-700 font-bold">Box ยาอยู่ที่แผนกอื่น</span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-green-50 p-card sm:p-4 rounded-xl">
+            <h3 class="font-bold text-green-800 mb-3 text-center sm:text-left text-base sm:text-lg">ชั้นที่ 2</h3>
+            <div class="grid grid-cols-1 gap-3" id="floor2-container"></div>
+          </div>
+
+          <div class="bg-purple-50 p-card sm:p-4 rounded-xl">
+            <h3 class="font-bold text-purple-800 mb-3 text-center sm:text-left text-base sm:text-lg">ชั้นที่ 3</h3>
+            <div class="grid grid-cols-1 gap-3" id="floor3-container"></div>
+          </div>
+
+          <div class="bg-gray-50 p-card sm:p-4 rounded-xl">
+            <h3 class="font-bold text-gray-800 mb-3 text-center sm:text-left text-base sm:text-lg">👤 ข้อมูลการตรวจ</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div>
+                <div class="flex justify-between items-center mb-2">
+                  <label class="text-base sm:text-lg font-semibold text-gray-700">ผู้ตรวจสอบ <span class="text-red-500">*</span></label>
+                  <button type="button" onclick="document.getElementById('inspector-modal').classList.remove('hidden')" class="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded border border-blue-200">+ เพิ่มรายชื่อ</button>
+                </div>
+                <div class="flex gap-2">
+                  <select id="inspector" class="w-full p-3 border border-gray-300 rounded-lg text-base text-center sm:text-left focus:outline-none focus:border-emerald-500" required><option value="">เลือกชื่อผู้ตรวจสอบ</option></select>
+                  <button type="button" onclick="deleteSelectedInspector()" class="bg-red-50 text-red-500 border border-red-200 px-4 rounded-lg hover:bg-red-100 flex items-center justify-center text-lg" title="ลบชื่อที่กำลังเลือก">🗑️</button>
+                </div>
+              </div>
+              <div>
+                <div class="flex justify-between items-center mb-2">
+                  <label class="text-base sm:text-lg font-semibold text-gray-700">ลายเซ็น <span class="text-red-500">*</span></label>
+                  <button type="button" id="clear-signature" class="text-sm text-red-600 bg-red-50 px-3 py-1 rounded border border-red-200">ล้างลายเซ็น</button>
+                </div>
+                <canvas id="signature-pad" class="w-full h-28 border border-gray-300 rounded-lg bg-white" required></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex justify-center sm:justify-end gap-3 pt-2">
+            <button type="button" id="cancel-edit-btn" onclick="cancelEditInspection()" class="hidden bg-gray-400 hover:bg-gray-500 text-white font-semibold py-3 px-6 rounded-xl shadow-md text-base sm:text-lg transition-colors">
+              ยกเลิกแก้ไข
+            </button>
+            <button type="submit" id="submit-inspection" class="w-full sm:w-auto bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-10 rounded-xl shadow-md text-base sm:text-lg transition-colors">
+              บันทึกการตรวจสอบ
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden mt-4">
+      <div class="p-card sm:p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-3">
+        <h2 class="text-sm sm:text-lg font-bold text-gray-800">📊 ประวัติการตรวจล่าสุด</h2>
+        <div class="flex gap-2">
+          <select id="filter-month" class="p-2 border rounded text-sm focus:outline-none focus:border-emerald-500 text-center"></select>
+          <select id="filter-year" class="p-2 border rounded text-sm focus:outline-none focus:border-emerald-500 text-center"></select>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-center">
+          <thead class="bg-gray-100 text-gray-600 text-xs sm:text-sm">
+            <tr>
+              <th class="px-3 py-2 text-left">วัน</th>
+              <th class="px-3 py-2 text-left">วันที่ตรวจ</th>
+              <th class="px-3 py-2">ผู้ตรวจ</th>
+              <th class="px-3 py-2 text-center w-20">ลายเซ็น</th>
+              <th class="px-3 py-2 text-center w-24">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="inspection-table-body" class="divide-y divide-gray-100 text-xs sm:text-sm"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="medicine-modal" class="fixed inset-0 bg-black/50 modal-backdrop hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto relative">
+      <button type="button" onclick="hideAllModals()" class="absolute top-2 right-4 text-gray-400 hover:text-red-500 text-3xl leading-none font-bold">&times;</button>
+      <div class="p-4 border-b border-gray-100">
+        <h3 id="modal-title" class="font-bold text-center text-lg w-full">เพิ่ม/แก้ไขยา</h3>
+      </div>
+      <form id="medicine-form" class="p-4 space-y-4">
+        <div><label class="block text-base font-semibold text-gray-700 mb-2 text-center sm:text-left">💊 ชื่อยา/เวชภัณฑ์</label><input type="text" id="medicine-name" required class="w-full p-3 border rounded-lg text-base text-center sm:text-left"></div>
+        <div><label class="block text-base font-semibold text-gray-700 mb-2 text-center sm:text-left">🏥 ประเภท</label><select id="medicine-type" required class="w-full p-3 border rounded-lg text-base text-center sm:text-left"><option value="ยา">💊 ยา</option><option value="อุปกรณ์ทางการแพทย์">🏥 อุปกรณ์ทางการแพทย์</option></select></div>
+        <div><label class="block text-base font-semibold text-gray-700 mb-2 text-center sm:text-left">📅 วันหมดอายุ</label><input type="date" id="expiry-date" required class="w-full p-3 border rounded-lg text-base text-center sm:text-left"></div>
+        <div class="flex gap-2 pt-3">
+          <button type="button" onclick="hideAllModals()" class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg text-base font-semibold">ยกเลิก</button>
+          <button type="submit" class="flex-1 bg-emerald-500 text-white py-3 rounded-lg text-base font-semibold">บันทึก</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="detail-modal" class="fixed inset-0 bg-black/50 modal-backdrop hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm relative">
+      <button type="button" onclick="hideAllModals()" class="absolute top-2 right-4 text-gray-400 hover:text-red-500 text-3xl leading-none font-bold">&times;</button>
+      <div class="p-4 border-b border-gray-100">
+        <h3 class="font-bold text-center text-lg w-full">รายละเอียดยา</h3>
+      </div>
+      <div id="detail-content" class="p-4 space-y-4 text-center"></div>
+    </div>
+  </div>
+
+  <div id="insp-detail-modal" class="fixed inset-0 bg-black/50 modal-backdrop hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md relative">
+      <button type="button" onclick="hideAllModals()" class="absolute top-2 right-4 text-gray-400 hover:text-red-500 text-3xl leading-none font-bold">&times;</button>
+      <div class="p-4 border-b border-gray-100">
+        <h3 class="font-bold text-center text-lg w-full">รายละเอียดการตรวจสอบ</h3>
+      </div>
+      <div id="insp-detail-content" class="p-4 text-center text-base space-y-3"></div>
+    </div>
+  </div>
+
+  <div id="inspector-modal" class="fixed inset-0 bg-black/50 modal-backdrop hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm flex flex-col relative">
+      <button onclick="hideAllModals()" class="absolute top-2 right-4 text-gray-400 hover:text-red-500 text-3xl leading-none font-bold">&times;</button>
+      <div class="p-4 border-b border-gray-100">
+        <h3 class="font-bold text-lg text-center w-full">เพิ่มรายชื่อผู้ตรวจ</h3>
+      </div>
+      <div class="p-4 flex-1">
+        <form id="add-inspector-form" class="flex flex-col gap-3">
+          <input type="text" id="new-inspector-name" placeholder="ระบุชื่อ-นามสกุล..." class="w-full p-4 border rounded-lg text-base text-center focus:outline-none focus:border-emerald-500" required>
+          <button type="submit" class="w-full bg-emerald-500 text-white py-3 rounded-lg text-base font-semibold">บันทึกชื่อใหม่</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================
+    // 🔗 API Wrapper สำหรับติดต่อไปยัง Google Apps Script Backend
+    // โค้ดนี้เช็คอัตโนมัติ ถ้าอยู่บน Google ใช้ google.script.run ถ้าอยู่บน GitHub ใช้ fetch()
+    // =========================================================
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyd0mY9o71ezrXxaRJE8-ICCaZHwVOzH7v3XT4v1aP_aQbz6qJFg4Wm_bVfv773Kr6LRg/exec';
+
+    function apiCall(funcName, payload = null) {
+      return new Promise((resolve, reject) => {
+        if (typeof google !== 'undefined' && google.script && google.script.run) {
+          if (payload !== null) {
+            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[funcName](payload);
+          } else {
+            google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[funcName]();
+          }
+        } else {
+          const formData = new FormData();
+          formData.append('action', funcName);
+          if (payload !== null) formData.append('data', JSON.stringify(payload));
+          fetch(WEB_APP_URL, { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(res => {
+               if (res.success === false && !res.data) reject(new Error(res.error));
+               else if (res.data !== undefined) resolve(res.data);
+               else resolve(res);
+            }).catch(err => reject(err));
+        }
+      });
+    }
+
+    const equipmentData = {
+      floor2: ['0.9 % NSS (1000 ml 1 ขวด)', 'Syringe Disposable ขนาดต่างๆ อย่างละ 3', 'เข็มฉีดยา เบอร์18-24 อย่างละ 3', 'Set IV 3 set', 'IV Catheter No. 24, 22, 20, 18 อย่างละ 3', 'Injection plug 3 set', 'Extension Tube 3 set', 'Three - way 3 อัน', 'Transpore 1 นิ้ว 1ม้วน', 'Tourniquet 2 อัน'],
+      floor3: ['สาย Suction No 14,16 อย่างละ 1', 'Ambu bag + Mask 1 ชุด', 'สายต่อออกซิเจน 1 เส้น', 'O2 Mask c bag,O2 canular อย่างละ 1', 'กรรไกร 1', 'ถุงมือ, Mask อย่างละ 5 อัน', 'Stethoscope 1', 'กระดานและปากกา 1', 'CPR reccord']
+    };
+
+    let signaturePad = null;
+    let allMedicines = [];
+    let allInspections = [];
+    let inspectorNames = [];
+    let editingMedicine = null;
+    let editingInspectionId = null;
+
+    setInterval(() => {
+      const now = new Date();
+      document.getElementById('current-datetime').innerText = now.toLocaleDateString('th-TH', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    }, 1000);
+
+    function setStatus(status, text) {
+      const ind = document.getElementById('status-indicator');
+      const txt = document.getElementById('status-text');
+      if (status === 'connected') { ind.className = 'w-2 h-2 rounded-full bg-green-500'; txt.className = 'text-xs text-green-600'; }
+      else if (status === 'error') { ind.className = 'w-2 h-2 rounded-full bg-red-500'; txt.className = 'text-xs text-red-600'; }
+      else if (status === 'loading') { ind.className = 'w-2 h-2 rounded-full bg-yellow-500 animate-pulse'; txt.className = 'text-xs text-yellow-600'; }
+      txt.textContent = text || '';
+    }
+
+    function hideAllModals() {
+      document.querySelectorAll('.modal-backdrop').forEach(el => el.classList.add('hidden'));
+    }
+
+    function generateFormUI() {
+      let counter = 1;
+      const createRadios = (items, containerId) => {
+        document.getElementById(containerId).innerHTML = items.map((item) => `
+          <div class="p-3 sm:p-4 bg-white rounded-lg border border-gray-100 shadow-sm flex flex-col justify-center">
+            <label class="block text-sm sm:text-base font-medium text-gray-800 radio-label mb-3 text-center break-words w-full">${item}</label>
+            <div class="flex justify-between w-full px-2 sm:px-6">
+              <label class="flex items-center space-x-2 cursor-pointer"><input type="radio" name="eq_${counter}" value="✓" class="radio-btn text-emerald-500 w-5 h-5" required> <span class="text-sm sm:text-base text-green-600 font-bold">✓ มี</span></label>
+              <label class="flex items-center space-x-2 cursor-pointer"><input type="radio" name="eq_${counter++}" value="✗" class="radio-btn text-red-500 w-5 h-5" required> <span class="text-sm sm:text-base text-red-600 font-bold">✗ ไม่มี</span></label>
+            </div>
+          </div>
+        `).join('');
+      };
+      createRadios(equipmentData.floor2, 'floor2-container'); 
+      createRadios(equipmentData.floor3, 'floor3-container'); 
+    }
+
+    async function fetchInitialData() {
+      try {
+        setStatus('loading', 'กำลังโหลดข้อมูลทั้งหมด...');
+        const data = await apiCall('getInitialData');
+        
+        allMedicines = data.medicines || [];
+        inspectorNames = data.names || [];
+        allInspections = data.inspections || [];
+
+        renderMedicinesData();
+        renderNamesData();
+        renderInspections();
+        
+        setStatus('connected', 'พร้อมใช้งาน');
+        apiCall('updateAllMedicineDays'); 
+      } catch (err) { setStatus('error', 'การเชื่อมต่อผิดพลาด'); }
+    }
+
+    async function fetchMedicinesOnly() {
+      try {
+        setStatus('loading', 'กำลังอัปเดตยา...');
+        allMedicines = await apiCall('getMedicines');
+        renderMedicinesData();
+        setStatus('connected', 'พร้อมใช้งาน');
+      } catch(err) { setStatus('error', 'ผิดพลาด'); }
+    }
+
+    function renderMedicinesData() {
+      const tbody = document.getElementById('medicine-table-body');
+      if(allMedicines && allMedicines.length > 0) {
+        
+        const getStatusWeight = (status) => {
+          if(!status) return 3;
+          if(status.includes('หมดอายุห้ามใช้') || status.includes('หมดอายุ') || status.includes('ไม่ผ่าน')) return 1;
+          if(status.includes('ควร') || status.includes('ใกล้')) return 2;
+          return 3;
+        };
+        
+        allMedicines.sort((a, b) => {
+          const wA = getStatusWeight(a.status);
+          const wB = getStatusWeight(b.status);
+          if(wA !== wB) return wA - wB; 
+          
+          const da = a.days_remaining === null ? 9999 : parseInt(a.days_remaining);
+          const db = b.days_remaining === null ? 9999 : parseInt(b.days_remaining);
+          return da - db;
+        });
+
+        tbody.innerHTML = allMedicines.map((med, index) => {
+          const d = med.days_remaining;
+          let cls = '';
+          const statusTxt = med.status || 'ปกติ';
+          
+          if (statusTxt.includes('หมดอายุ') || statusTxt.includes('ไม่ผ่าน')) {
+            cls = 'bg-red-100 text-red-700 border border-red-300 animate-pulse';
+          } else if (statusTxt.includes('ควร') || statusTxt.includes('ใกล้')) {
+            cls = 'bg-yellow-100 text-yellow-700 border border-yellow-300 animate-pulse';
+          } else {
+            cls = 'bg-emerald-50 text-emerald-600 border border-emerald-200';
+          }
+
+          return `
+            <tr class="border-b border-gray-50">
+              <td class="px-3 py-2 text-left truncate max-w-[120px] mx-auto">${med.medicine_name}</td>
+              <td class="px-3 py-2 text-center font-bold ${d !== null && d <= 30 ? 'text-red-600' : 'text-emerald-600'}">${d !== null ? d : '-'}</td>
+              <td class="px-3 py-2 text-center"><span class="px-2 py-0.5 rounded text-[10px] sm:text-xs font-bold ${cls}">${statusTxt}</span></td>
+              <td class="px-3 py-2 text-center">
+                <button onclick="viewMed(${index})" class="text-blue-500 text-xl hover:scale-110" title="จัดการ">👁️</button>
+              </td>
+            </tr>`;
+        }).join('');
+      } else tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-400 text-xs">ไม่มีข้อมูลยา</td></tr>';
+    }
+
+    function viewMed(index) {
+      const med = allMedicines[index];
+      document.getElementById('detail-content').innerHTML = `
+        <div class="p-3 bg-gray-50 rounded-lg mb-3 mx-auto text-base"><strong>${med.medicine_name}</strong> <br><span class="text-sm text-gray-500">ประเภท: ${med.type}</span></div>
+        <div class="grid grid-cols-2 gap-3 text-base mx-auto">
+          <div class="p-3 border rounded bg-blue-50"><p class="text-sm text-gray-500">วันหมดอายุ</p><p class="font-bold">${med.expiry_date}</p></div>
+          <div class="p-3 border rounded bg-orange-50"><p class="text-sm text-gray-500">วันที่ต้องแลก</p><p class="font-bold">${med.exchange_date}</p></div>
+          <div class="p-3 border rounded bg-emerald-50"><p class="text-sm text-gray-500">วันคงเหลือ</p><p class="font-bold text-xl">${med.days_remaining !== null ? med.days_remaining : '-'}</p></div>
+          <div class="p-3 border rounded"><p class="text-sm text-gray-500">สถานะ</p><p class="font-bold text-red-500">${med.status || 'ปกติ'}</p></div>
+        </div>
+        <div class="flex gap-2 mt-5">
+          <button onclick="editMed(${index})" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-lg text-base font-semibold">✏️ แก้ไข</button>
+          <button onclick="delMed(${index})" class="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg text-base font-semibold">🗑️ ลบ</button>
+        </div>
+      `;
+      document.getElementById('detail-modal').classList.remove('hidden');
+    }
+
+    function editMed(index) {
+      hideAllModals();
+      editingMedicine = allMedicines[index];
+      document.getElementById('modal-title').innerText = 'แก้ไขยา';
+      document.getElementById('medicine-name').value = editingMedicine.medicine_name;
+      document.getElementById('medicine-type').value = editingMedicine.type;
+      
+      let exp = editingMedicine.expiry_date;
+      if(exp && exp.includes('/')) {
+        const parts = exp.split('/');
+        if(parts.length===3) document.getElementById('expiry-date').value = `${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`;
+      } else { document.getElementById('expiry-date').value = exp; }
+      document.getElementById('medicine-modal').classList.remove('hidden');
+    }
+
+    async function delMed(index) {
+      const med = allMedicines[index];
+      if(confirm(`ยืนยันการลบ ${med.medicine_name}?`)) {
+        hideAllModals();
+        Swal.fire({ title: 'กำลังลบ...', showConfirmButton: false });
+        await apiCall('deleteMedicine', med.id);
+        fetchMedicinesOnly();
+        Swal.close();
+      }
+    }
+
+    function openAddMedicineModal() {
+      editingMedicine = null;
+      document.getElementById('modal-title').innerText = 'เพิ่มยา/เวชภัณฑ์';
+      document.getElementById('medicine-form').reset();
+      document.getElementById('medicine-modal').classList.remove('hidden');
+    }
+
+    document.getElementById('medicine-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('medicine-name').value;
+      const type = document.getElementById('medicine-type').value;
+      const expDate = document.getElementById('expiry-date').value; 
+      
+      const d = new Date(expDate); 
+      const formatExp = `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;
+
+      const payload = {
+        id: editingMedicine ? editingMedicine.id : null,
+        medicine_name: name, type: type, expiry_date: formatExp, exchange_date: '',
+        days_remaining: '', status: '', recorded_at: new Date().toLocaleString('th-TH')
+      };
+      
+      Swal.fire({ title: 'กำลังบันทึก...', showConfirmButton: false });
+      await apiCall('saveMedicine', payload);
+      hideAllModals(); 
+      fetchMedicinesOnly();
+      Swal.close();
+    });
+
+    // --- ระบบรายชื่อ ---
+    function renderNamesData() {
+      const sel = document.getElementById('inspector');
+      const currentSelected = sel.value;
+      sel.innerHTML = '<option value="">เลือกชื่อผู้ตรวจสอบ</option>';
+      inspectorNames.forEach(n => sel.innerHTML += `<option value="${n}">${n}</option>`);
+      if(currentSelected && inspectorNames.includes(currentSelected)) sel.value = currentSelected;
+    }
+
+    document.getElementById('add-inspector-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const n = document.getElementById('new-inspector-name').value.trim();
+      if(n) { 
+        hideAllModals();
+        Swal.fire({ title: 'กำลังเพิ่มรายชื่อ...', showConfirmButton: false, allowOutsideClick: false });
+        await apiCall('saveName', n); 
+        document.getElementById('new-inspector-name').value = ''; 
+        inspectorNames = await apiCall('getNames');
+        renderNamesData();
+        document.getElementById('inspector').value = n; 
+        Swal.fire({ icon: 'success', title: 'เพิ่มสำเร็จ', timer: 1500, showConfirmButton: false });
+      }
+    });
+
+    async function deleteSelectedInspector() {
+      const sel = document.getElementById('inspector');
+      const name = sel.value;
+      if(!name) return Swal.fire({icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณาเลือกชื่อที่ต้องการลบจากช่องก่อนครับ'});
+      
+      const confirmResult = await Swal.fire({
+        title: 'ยืนยันการลบ?',
+        text: `ต้องการลบรายชื่อ "${name}" ออกจากระบบใช่หรือไม่?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonColor: '#9ca3af',
+        confirmButtonText: 'ลบรายชื่อ',
+        cancelButtonText: 'ยกเลิก'
+      });
+
+      if(confirmResult.isConfirmed) {
+        Swal.fire({ title: 'กำลังลบ...', showConfirmButton: false, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const res = await apiCall('deleteName', name);
+        if(res.success) {
+           sel.value = '';
+           inspectorNames = await apiCall('getNames');
+           renderNamesData();
+           Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
+        }
+      }
+    }
+
+    // --- ระบบประวัติ ---
+    function parseThaiDateStr(str) {
+      if(!str) return { day: '-', dateStr: '-' };
+      const match = str.match(/(วัน[ก-๙]+)?\s*(\d{1,2})\s*([ก-๙]+)\s*(\d{4})/);
+      if(match) {
+        const day = match[1] || '-';
+        return { day: day, dateStr: `${match[2]} ${match[3]} ${match[4]}` };
+      }
+      return { day: '-', dateStr: str };
+    }
+
+    function setupFilters() {
+      const mSel = document.getElementById('filter-month');
+      const ySel = document.getElementById('filter-year');
+      const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+      
+      mSel.innerHTML = '<option value="">ทุกเดือน</option>';
+      thaiMonths.forEach(m => mSel.innerHTML += `<option value="${m}">${m}</option>`);
+      
+      ySel.innerHTML = '<option value="">ทุกปี</option>';
+      const currentY = new Date().getFullYear() + 543;
+      for(let y = currentY-2; y <= currentY+2; y++) ySel.innerHTML += `<option value="${y}">${y}</option>`;
+
+      mSel.value = thaiMonths[new Date().getMonth()];
+      ySel.value = currentY.toString();
+
+      mSel.addEventListener('change', renderInspections);
+      ySel.addEventListener('change', renderInspections);
+    }
+
+    async function fetchInspectionsOnly() {
+      allInspections = await apiCall('getInspections');
+      renderInspections();
+    }
+
+    function renderInspections() {
+      const tbody = document.getElementById('inspection-table-body');
+      const fM = document.getElementById('filter-month').value;
+      const fY = document.getElementById('filter-year').value;
+
+      let filtered = allInspections || [];
+      if (fM || fY) {
+        filtered = filtered.filter(item => {
+          let matchM = true, matchY = true;
+          if (fM) matchM = item.id.includes(fM); 
+          if (fY) matchY = item.id.includes(fY);
+          return matchM && matchY;
+        });
+      }
+
+      if(filtered.length > 0) {
+        tbody.innerHTML = filtered.reverse().map((item) => {
+          const parsed = parseThaiDateStr(item.id);
+          return `
+          <tr class="border-b border-gray-50 text-center">
+            <td class="px-3 py-2 text-sm font-semibold text-emerald-600 text-left">${parsed.day}</td>
+            <td class="px-3 py-2 text-sm text-gray-500 text-left whitespace-nowrap">${parsed.dateStr}</td>
+            <td class="px-3 py-2 truncate max-w-[100px] text-sm">${item.inspector}</td>
+            <td class="px-3 py-2">${item.signature ? `<img src="${item.signature}" class="h-6 mx-auto object-contain border border-gray-200 rounded">` : '-'}</td>
+            <td class="px-3 py-2">
+               <div class="flex justify-center gap-2">
+                  <button onclick="viewInsp('${item.id}')" class="text-blue-500 text-xl hover:scale-110" title="ดูรายละเอียด">👁️</button>
+                  <button onclick="editInsp('${item.id}')" class="text-emerald-500 text-xl hover:scale-110" title="แก้ไข">✏️</button>
+                  <button onclick="delInsp('${item.id}')" class="text-red-500 text-xl hover:scale-110" title="ลบ">🗑️</button>
+               </div>
+            </td>
+          </tr>
+        `}).join('');
+      } else tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5 text-gray-400 text-sm">ไม่มีประวัติในเดือนนี้</td></tr>';
+    }
+
+    function viewInsp(id) {
+      const insp = allInspections.find(i => i.id === id);
+      if(!insp) return;
+      const parsed = parseThaiDateStr(insp.id);
+      document.getElementById('insp-detail-content').innerHTML = `
+        <p class="text-base"><strong>วัน:</strong> ${parsed.day} ${parsed.dateStr}</p>
+        <p class="text-base"><strong>ประเภท Box:</strong> <span class="text-emerald-600">${insp.box_type}</span></p>
+        <p class="text-base"><strong>ผู้ตรวจสอบ:</strong> ${insp.inspector}</p>
+      `;
+      document.getElementById('insp-detail-modal').classList.remove('hidden');
+    }
+
+    function editInsp(id) {
+      const insp = allInspections.find(i => i.id === id);
+      if(!insp) return;
+      editingInspectionId = id;
+      
+      const parsed = parseThaiDateStr(insp.id);
+      const match = id.match(/(วัน[ก-๙]+)?\s*(\d{1,2})\s*([ก-๙]+)\s*(\d{4})/);
+      if(match) {
+         document.getElementById('day').value = match[1] || '';
+         const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+         const mIdx = thaiMonths.indexOf(match[3]) + 1;
+         const y = parseInt(match[4]) - 543;
+         document.getElementById('date').value = `${y}-${mIdx.toString().padStart(2,'0')}-${match[2].padStart(2,'0')}`;
+      }
+      
+      document.getElementById('checkId').value = insp.id;
+      document.getElementById('inspector').value = insp.inspector;
+      
+      const radioBox = document.querySelector(`input[name="medicineType"][value="${insp.box_type}"]`);
+      if(radioBox) radioBox.checked = true;
+
+      for(let i=1; i<=19; i++) {
+        const val = insp[`eq_${i}`];
+        if(val) {
+          const radio = document.querySelector(`input[name="eq_${i}"][value="${val}"]`);
+          if(radio) radio.checked = true;
+        }
+      }
+      
+      document.getElementById('submit-inspection').innerText = 'บันทึกการแก้ไข';
+      document.getElementById('cancel-edit-btn').classList.remove('hidden');
+      document.getElementById('emergencyForm').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function cancelEditInspection() {
+      editingInspectionId = null;
+      document.getElementById('emergencyForm').reset();
+      document.getElementById('submit-inspection').innerText = 'บันทึกการตรวจสอบ';
+      document.getElementById('cancel-edit-btn').classList.add('hidden');
+      document.getElementById('clear-signature').click();
+      updateId();
+    }
+
+    async function delInsp(id) { if(confirm('ลบประวัตินี้?')) { await apiCall('deleteInspectionRecord', id); fetchInspectionsOnly(); } }
+
+    function initSignature() {
+      const canvas = document.getElementById('signature-pad');
+      const ctx = canvas.getContext('2d');
+      const r = canvas.parentElement.getBoundingClientRect();
+      canvas.width = r.width * 2; canvas.height = r.height * 2;
+      ctx.scale(2, 2); ctx.lineCap = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = '#047857';
+
+      let isD = false, isE = true;
+      const getP = (e) => { const r = canvas.getBoundingClientRect(); return { x: (e.clientX || (e.touches && e.touches[0].clientX)) - r.left, y: (e.clientY || (e.touches && e.touches[0].clientY)) - r.top }; };
+      const start = (e) => { isD = true; isE = false; const p = getP(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+      const draw = (e) => { if (!isD) return; e.preventDefault(); const p = getP(e); ctx.lineTo(p.x, p.y); ctx.stroke(); };
+      const stop = () => { isD = false; };
+
+      canvas.addEventListener('mousedown', start); canvas.addEventListener('mousemove', draw); canvas.addEventListener('mouseup', stop); canvas.addEventListener('mouseout', stop);
+      canvas.addEventListener('touchstart', start, {passive:false}); canvas.addEventListener('touchmove', draw, {passive:false}); canvas.addEventListener('touchend', stop);
+      document.getElementById('clear-signature').addEventListener('click', () => { ctx.clearRect(0, 0, canvas.width, canvas.height); isE = true; });
+      signaturePad = { canvas, isEmpty: () => isE };
+    }
+
+    function updateId() {
+      const dayStr = document.getElementById('day').value;
+      const dateVal = document.getElementById('date').value;
+      if(!editingInspectionId && dayStr && dateVal) {
+        const dObj = new Date(dateVal);
+        const thaiMonths = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+        document.getElementById('checkId').value = `${dayStr}${dObj.getDate()}${thaiMonths[dObj.getMonth()]}${dObj.getFullYear() + 543}`;
+      }
+    }
+    
+    document.getElementById('day').addEventListener('change', updateId);
+    document.getElementById('date').addEventListener('change', updateId);
+
+    document.getElementById('emergencyForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!editingInspectionId && signaturePad.isEmpty()) return Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณาเซ็นชื่อรับรอง' });
+
+      updateId(); 
+      const checkIdVal = document.getElementById('checkId').value;
+      if(!checkIdVal) return Swal.fire({ icon: 'warning', title: 'แจ้งเตือน', text: 'กรุณาเลือกวันและวันที่ตรวจ' });
+      
+      const btn = document.getElementById('submit-inspection');
+      btn.disabled = true; btn.innerText = 'กำลังบันทึก...';
+
+      try {
+        const payload = {
+          id: checkIdVal,
+          box_type: document.querySelector('input[name="medicineType"]:checked').value,
+          inspector: document.getElementById('inspector').value,
+          signature: signaturePad.isEmpty() ? null : signaturePad.canvas.toDataURL('image/png'),
+          is_edit: !!editingInspectionId
+        };
+        for(let i=1; i<=19; i++) {
+          const r = document.querySelector(`input[name="eq_${i}"]:checked`);
+          payload[`eq_${i}`] = r ? r.value : '';
+        }
+
+        Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const result = await apiCall('saveInspection', payload);
+        
+        if (result.success) {
+          Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+          cancelEditInspection(); 
+          fetchInspectionsOnly();
+        } else throw new Error(result.error);
+      } catch (err) {
+        Swal.fire({ icon: 'error', title: 'ผิดพลาด', text: err.message });
+      } finally {
+        btn.disabled = false; btn.innerText = editingInspectionId ? 'บันทึกการแก้ไข' : 'บันทึกการตรวจสอบ';
+      }
+    });
+
+    window.onload = () => {
+      const d = document.getElementById('date');
+      d.value = new Date().toISOString().split('T')[0];
+      setupFilters();
+      generateFormUI();
+      initSignature();
+      fetchInitialData();
+    };
+  </script>
+</body>
+</html>
